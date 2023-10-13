@@ -1,29 +1,36 @@
 const bcrypt = require('bcrypt')
 const cache = require('memory-cache')
-//const CryptoJS = require("crypto-js");
 const jwt = require('jsonwebtoken')
 const { JWT_SIGN } = require('../config/jwt.js')
-const StandardError = require('../utils/standard-error.js')
+const StandardError = require('../utils/standard-error.js');
+const { addDays } = require("date-fns");
 
-const registerService = async (req, username, password, role) => {
-  const user = await req.db.collection('users').findOne({ username })
+
+const sendEmail = (email, key) => {
+  console.log(`Subject: Password reset request`);
+  console.log(`To: ${email}`);
+  console.log(`Body: hit me, http://localhost:5001/reset?key=${key}`);
+
+};
+
+const registerService = async (req, email, username, password) => {
+  const user = await req.db.collection('user').findOne({ username })
     
   if (user) {
     throw new Error('Username already exists')
   } 
   
-  const hashedPassword = await bcrypt.hash(password, 8) // return !@#123
-  
-  const newUser = await req.db.collection('users').insertOne({ username, password: hashedPassword, role })
+  const hashedPassword = await bcrypt.hash(password, 8) 
+  const newUser = await req.db.collection('user').insertOne({ email, username, password: hashedPassword})
   
   return newUser
 }
 
 const register = async (req, res, next) => {
-  const { username, password } = req.body
+  const { email, username, password } = req.body
   
   try {
-    const newUser = await registerService(req, username, password)
+    const newUser = await registerService(req, email, username, password)
     
     res.status(200).json({
       message: 'User successfully registered',
@@ -34,57 +41,62 @@ const register = async (req, res, next) => {
       message: error.message || 'Error while registering user',
       status: 500
     })
-    
     next(standardError)
   }
 }
 
 const login = async (req, res) => {
   const { username, password } = req.body
-  const user = await req.db.collection('users').findOne({ username })
+  const user = await req.db.collection('user').findOne({ username });
   
-  /*const isPasswordCorrect = await bcrypt.compare(password, user.password) 
+  const isPasswordCorrect = await bcrypt.compare(password, user.password) 
   
   if (isPasswordCorrect) {
-    const token = jwt.sign({ username: user.username, id: user._id, role: user.role }, JWT_SIGN)
+    // Get accessToken, refreshToken & accessTokenExpiration
+    const accessToken = jwt.sign({ username: user.username, id: user._id, role: user.role }, JWT_SIGN, { expiresIn: "10m"})
+    const refreshToken = jwt.sign({ username: user.username, id: user._id, role: user.role }, JWT_SIGN, { expiresIn: "7d"})
+    const accessTokenExpiration = addDays(new Date(), 600);
+    // Set cookie to headers
+    res.cookie("access_token", accessToken, {
+      maxAge: 10 * 60 * 1000,
+      httpOnly: true,
+    });
+    res.cookie("refresh_token", refreshToken, {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+    });
     res.status(200).json({
       message: 'User successfully logged in',
-      data: token
+      data: {
+        accessToken,
+        refreshToken,
+        accessTokenExpiration
+      }
     })
   } else {
     res.status(400).json({ error: 'Password is incorrect' })
   }
   
-}*/
-  const isAuth = await User.authenticate(user.username, password);
-  if (!user || !isAuth) {
-    res.status(401).json({ error: "Invalid username or password" });
-    return;
-  }
-  const { accesToken, expireAt, refreshToken } = User.generateToken(user);
-  res.cookie('accesToken', accesToken, { httpOnly: true, expire: expireAt });
-  res.cookie('refreshToken', refreshToken, { httpOnly: true, expire: expireAt });
-  res.json();
-  }
-
+}
 
 const logout = async (req, res) => {
-  res.clearCookie('accesToken');
-  res.clearCookie('refreshToken');
-  res.json();
+  res.clearCookie('access_token');
+  res.clearCookie('refresh_token');
+  res.status(200).json({message: "Successfully Log Out"});
 }
 
 const passwordResetRequest = async (req, res) => {
       // untuk minta kunci reset password
       const { email } = req.body;
-      const user = await User.get({ email: email });
+      const user = await req.db.collection('user').findOne({ email });
+      console.log(user);
       if (!user) {
         res.status(400).json({ error: "some error" });
         return;
       }
       const key = Math.random().toString(36).substring(2, 15);
       // set cache 5 minutes
-      cache.put(key, user.email, 25 * 1 * 1000);
+      cache.put(key, user.email, 5 * 60 * 1000);
       sendEmail(user.email, key);
       res.json({ message: "Password reset email sent" });
 }
@@ -100,13 +112,22 @@ const passwordReset = async (req, res) => {
     res.status(400).json({ error: "Invalid token" });
     return;
   }
-  const user = await User.get({ email: email });
-  if (!user) {
-    res.status(400).json({ error: "error" });
-    return;
-  }
+  // req.db
+const usersCollection = req.db.collection('user'); // Use the correct collection name
+const user = await usersCollection.findOne({ email });
 
-  await user.updateOne({ password: User.make_password(password) });
+if (!user) {
+  res.status(400).json({ error: "User not found" });
+  return;
+}
+
+const hashedPassword = await bcrypt.hash(password, 8) 
+
+// Update the user's password
+await usersCollection.updateOne(
+  { email: user.email }, 
+  { $set: { password: hashedPassword } } 
+);
   // jika sukses kunci dihapus
   cache.del(key);
   res.json({ message: "Password reset success" });

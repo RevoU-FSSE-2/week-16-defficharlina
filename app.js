@@ -1,5 +1,4 @@
 require('dotenv').config()
-
 const express = require('express')
 const router = require('./routes');
 const useMiddleware = require('./middleware')
@@ -7,9 +6,7 @@ const useMiddleware = require('./middleware')
 const app = express()
 
 useMiddleware(app)
-app.use(express.json())
 app.use(router)
-
 
 app.use((err, req, res, next) => {
   console.log(err, `<=================== error ==================`);
@@ -19,6 +16,8 @@ app.use((err, req, res, next) => {
   })
 })
 
-app.listen(3000, () => {
-  console.log('Server is running on http://localhost:3000')
+const PORT = 5001;
+
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`)
 })
