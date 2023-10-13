@@ -13,7 +13,7 @@ const sendEmail = (email, key) => {
 
 };
 
-const registerService = async (req, email, username, password) => {
+const registerService = async (req, email, username, password, role) => {
   const user = await req.db.collection('user').findOne({ username })
     
   if (user) {
@@ -21,16 +21,16 @@ const registerService = async (req, email, username, password) => {
   } 
   
   const hashedPassword = await bcrypt.hash(password, 8) 
-  const newUser = await req.db.collection('user').insertOne({ email, username, password: hashedPassword})
+  const newUser = await req.db.collection('user').insertOne({ email, username, password: hashedPassword, role})
   
   return newUser
 }
 
 const register = async (req, res, next) => {
-  const { email, username, password } = req.body
+  const { email, username, password, role} = req.body
   
   try {
-    const newUser = await registerService(req, email, username, password)
+    const newUser = await registerService(req, email, username, password, role)
     
     res.status(200).json({
       message: 'User successfully registered',

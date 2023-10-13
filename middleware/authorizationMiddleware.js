@@ -2,15 +2,13 @@ const jwt = require('jsonwebtoken')
 const { JWT_SIGN } = require('../config/jwt.js')
 
 const authorizationMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization
+  const authHeader = req.cookies.access_token
   
   if (!authHeader) {
     res.status(401).json({ error: 'Unauthorized' })
   } else {
-    const token = authHeader.split(' ')[1]
-    
     try {
-      const decodedToken = jwt.verify(token, JWT_SIGN)
+      const decodedToken = jwt.verify(authHeader, JWT_SIGN)
       if (decodedToken.role === 'admin' || decodedToken.role === 'superadmin' ) {
         next()
       } else {

@@ -5,12 +5,13 @@ const {
   editBook,
   deleteBook,
 } = require("../controller/bookController");
+const authenticationMiddleware = require("../middleware/authenticationMiddleware");
 
 const bookRouter = Router();
 
-bookRouter.get("/", getAllBook);
-bookRouter.post('/', createBook)
-bookRouter.put('/:id',editBook)
-bookRouter.delete('/:id',deleteBook)
+bookRouter.get("/", authenticationMiddleware, getAllBook);
+bookRouter.post('/', authenticationMiddleware, createBook)
+bookRouter.put('/:id', authenticationMiddleware, editBook)
+bookRouter.delete('/:id', authenticationMiddleware, deleteBook)
 
 module.exports = bookRouter;
